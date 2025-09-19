@@ -6,8 +6,6 @@ use App\Models\Blog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-// If you prefer Auth::user()
-use Illuminate\Support\Facades\Auth;
 
 class BlogController extends Controller
 {
@@ -55,7 +53,7 @@ class BlogController extends Controller
         $blog = Blog::create([
             'title'       => $request->input('title'),
             'description' => $request->input('description'),
-            'image'       => $path, // store relative path only
+            'image'       => $path, // store relative path
             // Auto-fill from login user
             'blog_by'     => $user?->name ?: ($user?->email ?: 'Unknown'),
         ]);
@@ -96,8 +94,15 @@ class BlogController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $blog = Blog::find($id);
+        // Log::info('UPDATE payload', [
+        // 'method'       => $request->method(),
+        // 'content_type' => $request->headers->get('Content-Type'),
+        // 'all'          => $request->all(),
+        // 'has_title'    => $request->has('title'),
+        // 'title'        => $request->input('title'),
+        // ]);
 
+        $blog = Blog::find($id);
         if (!$blog) {
             return response()->json([
                 'success' => false,
@@ -106,11 +111,11 @@ class BlogController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'title'       => ['sometimes', 'required', 'string', 'max:255'],
-            'description' => ['sometimes', 'required', 'string'],
+            'title'       => ['sometimes', 'string', 'max:255'],
+            'description' => ['sometimes', 'string'],
             'image'       => ['sometimes', 'file', 'image', 'mimes:jpeg,png,jpg,webp,gif', 'max:5120'],
-            // 'blog_by'   => removed; cannot be changed by request
         ]);
+        // dd($validator);
 
         if ($validator->fails()) {
             return response()->json([
@@ -119,22 +124,19 @@ class BlogController extends Controller
             ], 422);
         }
 
-        // Only set the fields that were provided (and allow NO override of blog_by)
-        $updateData = [];
-        if ($request->has('title'))       $updateData['title'] = $request->input('title');
-        if ($request->has('description')) $updateData['description'] = $request->input('description');
+        // Safely copy any provided scalar fields
+        $blog->fill($request->only(['title', 'description']));
 
+        // Handle image replacement
         if ($request->hasFile('image')) {
-            // Delete old file if exists
             if ($blog->image && Storage::disk('public')->exists($blog->image)) {
                 Storage::disk('public')->delete($blog->image);
             }
-            // Store new file
-            $newPath = $request->file('image')->store('blogs', 'public');
-            $updateData['image'] = $newPath;
+            $blog->image = $request->file('image')->store('blogs', 'public');
         }
 
-        $blog->update($updateData);
+        $blog->save(); 
+        $blog->refresh(); 
 
         $blog->image_url = $blog->image ? Storage::disk('public')->url($blog->image) : null;
 
@@ -144,6 +146,7 @@ class BlogController extends Controller
             'data'    => $blog
         ], 200);
     }
+
 
     /**
      * Remove the specified blog from storage.

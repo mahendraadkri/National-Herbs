@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
@@ -34,7 +35,7 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = \Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'category_id' => ['required','exists:categories,id'],
             'name'        => ['required','string','max:255','unique:products,name'],
             'old_price'   => ['nullable','integer'],
@@ -97,7 +98,7 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
-        $validator = \Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'category_id' => ['sometimes','exists:categories,id'],
             'name'        => ['sometimes','string','max:255', Rule::unique('products','name')->ignore($product->id)],
             'old_price'   => ['nullable','integer'],
@@ -157,9 +158,8 @@ class ProductController extends Controller
     }
 
     /**
-     * ---- Helpers ----
+     * Helpers function
      */
-
     private function decodeImages($images): ?array
     {
         if (is_null($images) || $images === '') return null;
@@ -190,7 +190,6 @@ class ProductController extends Controller
 
     /**
      * Generate a unique slug from a given name.
-     * Appends -2, -3, ... until unique. Ignores $ignoreId on update.
      */
     private function generateUniqueSlug(string $name, ?int $ignoreId = null): string
     {

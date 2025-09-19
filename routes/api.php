@@ -36,7 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::resource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 
     // Products API.
-    Route::resource('products', ProductController::class)->only(['store', 'update', 'destroy']);
+    Route::resource('products', ProductController::class)->only(['store', 'destroy']);
+    Route::post('products', [ProductController::class, 'update']);
 
     // Contact View API.
     Route::get('viewcontact', [ContactUsController::class, 'index']);
@@ -45,5 +46,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::resource('users', UserController::class)->only(['show', 'index']);
 
     // Blog API.
-    Route::resource('blogs', BlogController::class)->only(['store', 'update', 'destroy']);
+    Route::resource('blogs', BlogController::class)->only(['store', 'destroy']);
+    Route::post('blogs/{id}', [BlogController::class, 'update']);
 });
