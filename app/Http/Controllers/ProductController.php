@@ -41,21 +41,21 @@ class ProductController extends Controller
             'old_price'   => ['nullable','integer'],
             'price'       => ['required','integer'],
             'description' => ['nullable','string'],
-            'images'      => ['nullable','array'],
-            'images.*'    => ['image','mimes:jpeg,png,jpg,gif','max:2048'],
+            'images'      => ['required'],
+            'images.*'    => ['file','image','mimes:jpeg,png,jpg,gif','max:2048'],
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // store files and keep PATHS in DB
-        $paths = null;
-        if ($request->hasFile('images')) {
-            $paths = [];
-            foreach ($request->file('images') as $image) {
-                $paths[] = $image->store('product_images', 'public');
-            }
+        // Normalize to an array of UploadedFile
+        $files = $request->file('images');
+        $files = is_array($files) ? $files : [$files];
+
+        $paths = [];
+        foreach ($files as $image) {
+            $paths[] = $image->store('product_images', 'public');
         }
 
         $product = Product::create([
@@ -65,13 +65,15 @@ class ProductController extends Controller
             'old_price'   => $request->old_price,
             'price'       => $request->price,
             'description' => $request->description,
-            'images'      => $paths ? json_encode($paths) : null,
+            'images'      => json_encode($paths),
         ]);
 
+        // convert storage paths to full URLs for API response
         $product->images = $this->pathsToUrls($product->images);
 
         return response()->json(['success' => true, 'product' => $product], 201);
     }
+
 
     /**
      * Display the specified resource.
@@ -99,15 +101,16 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $validator = Validator::make($request->all(), [
-            'category_id' => ['sometimes','exists:categories,id'],
-            'name'        => ['sometimes','string','max:255', Rule::unique('products','name')->ignore($product->id)],
-            'old_price'   => ['nullable','integer'],
-            'price'       => ['sometimes','integer'],
-            'description' => ['nullable','string'],
-            'images'      => ['nullable','array'],
-            'images.*'    => ['image','mimes:jpeg,png,jpg,gif','max:2048'],
-            'clear_images'=> ['sometimes','boolean'],
+            'category_id'  => ['sometimes','exists:categories,id'],
+            'name'         => ['sometimes','string','max:255', Rule::unique('products','name')->ignore($product->id)],
+            'old_price'    => ['nullable','integer'],
+            'price'        => ['sometimes','integer'],
+            'description'  => ['nullable','string'],
+            'images'       => ['nullable','array'],
+            'images.*'     => ['sometimes','file','image','mimes:jpeg,png,jpg,gif','max:2048'],
+            'clear_images' => ['sometimes','boolean'],
         ]);
+
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);

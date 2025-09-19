@@ -11,7 +11,7 @@ class Product extends Model
     // protected $casts = ['images' => 'array'];
 
     
-    // Define relationship to Category (assuming Category model exists)
+    // Define relationship
     public function category()
     {
         return $this->belongsTo(Category::class);
