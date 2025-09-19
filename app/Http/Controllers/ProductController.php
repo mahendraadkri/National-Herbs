@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -14,18 +15,14 @@ class ProductController extends Controller
      */
     public function index()
     {
-        // If your Product model casts 'images' to array, this is automatic.
         $products = Product::with('category')->get()->map(function ($p) {
-            $p->images = $this->decodeImages($p->images);
+            $p->images = $this->pathsToUrls($p->images);
             return $p;
         });
 
         return response()->json(['products' => $products], 200);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         return response()->json(['message' => 'Provide product data to create'], 200);
@@ -33,111 +30,110 @@ class ProductController extends Controller
 
     /**
      * Store a newly created resource in storage.
+     * Creates a unique slug from name.
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'category_id' => 'required|exists:categories,id',
-            'name'        => 'required|string|unique:products,name',
-            'old_price'   => 'nullable|integer',
-            'price'       => 'required|integer',
-            'description' => 'nullable|string',
-            'images'      => 'nullable|array',
-            'images.*'    => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+        $validator = \Validator::make($request->all(), [
+            'category_id' => ['required','exists:categories,id'],
+            'name'        => ['required','string','max:255','unique:products,name'],
+            'old_price'   => ['nullable','integer'],
+            'price'       => ['required','integer'],
+            'description' => ['nullable','string'],
+            'images'      => ['nullable','array'],
+            'images.*'    => ['image','mimes:jpeg,png,jpg,gif','max:2048'],
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $imagePaths = null;
-
+        // store files and keep PATHS in DB
+        $paths = null;
         if ($request->hasFile('images')) {
             $paths = [];
             foreach ($request->file('images') as $image) {
                 $paths[] = $image->store('product_images', 'public');
             }
-            // store as JSON string; leave null if none uploaded
-            $imagePaths = json_encode($paths);
         }
 
-        $productData = $request->only(['category_id', 'name', 'old_price', 'price', 'description']);
-        $productData['images'] = $imagePaths; // may be null
+        $product = Product::create([
+            'category_id' => $request->category_id,
+            'name'        => $request->name,
+            'slug'        => $this->generateUniqueSlug($request->name),
+            'old_price'   => $request->old_price,
+            'price'       => $request->price,
+            'description' => $request->description,
+            'images'      => $paths ? json_encode($paths) : null,
+        ]);
 
-        $product = Product::create($productData);
-        $product->images = $this->decodeImages($product->images);
+        $product->images = $this->pathsToUrls($product->images);
 
         return response()->json(['success' => true, 'product' => $product], 201);
     }
 
     /**
      * Display the specified resource.
+     * Works with route model binding (id or slug if configured).
      */
-    public function show($id)
+    public function show(Product $product)
     {
-        $product = Product::with('category')->find($id);
-        if (!$product) {
-            return response()->json(['message' => 'Product not found.'], 404);
-        }
-
-        $product->images = $this->decodeImages($product->images);
+        $product->load('category');
+        $product->images = $this->pathsToUrls($product->images);
 
         return response()->json(['product' => $product], 200);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit($id)
+    public function edit(Product $product)
     {
-        $product = Product::find($id);
-        if (!$product) {
-            return response()->json(['message' => 'Product not found.'], 404);
-        }
-
-        $product->images = $this->decodeImages($product->images);
+        $product->images = $this->pathsToUrls($product->images);
 
         return response()->json(['product' => $product], 200);
     }
 
     /**
      * Update the specified resource in storage.
+     * Regenerates slug if name changes.
      */
     public function update(Request $request, Product $product)
     {
-        // Validate input
-        $validator = Validator::make($request->all(), [
-            'category_id' => 'sometimes|exists:categories,id',
-            'name'        => 'sometimes|string|max:255|unique:products,name,' . $product->id . ',id',
-            'old_price'   => 'nullable|integer',
-            'price'       => 'sometimes|integer',
-            'description' => 'nullable|string',
-
-            // images are optional; send as form-data: images[]
-            'images'      => 'nullable|array',
-            'images.*'    => 'image|mimes:jpeg,png,jpg,gif',
-
-            // optional flag to clear all existing images without uploading new ones
-            'clear_images'=> 'sometimes|boolean',
+        $validator = \Validator::make($request->all(), [
+            'category_id' => ['sometimes','exists:categories,id'],
+            'name'        => ['sometimes','string','max:255', Rule::unique('products','name')->ignore($product->id)],
+            'old_price'   => ['nullable','integer'],
+            'price'       => ['sometimes','integer'],
+            'description' => ['nullable','string'],
+            'images'      => ['nullable','array'],
+            'images.*'    => ['image','mimes:jpeg,png,jpg,gif','max:2048'],
+            'clear_images'=> ['sometimes','boolean'],
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Prepare updatable fields
-        $productData = $request->only(['category_id', 'name', 'old_price', 'price', 'description']);
+        $hasPayload =
+            $request->hasAny(['category_id','name','old_price','price','description','clear_images'])
+            || $request->hasFile('images');
 
-        // If client wants to clear current images explicitly
-        if ($request->boolean('clear_images')) {
-            $this->deleteImagesFromStorage($product->images);
-            $productData['images'] = null; // DB column is nullable
+        if (!$hasPayload) {
+            return response()->json(['message' => 'No fields to update.'], 400);
         }
 
-        // If new images uploaded, replace old ones
+        $productData = $request->only(['category_id','name','old_price','price','description']);
+
+        // If name changed, refresh slug (keep unique, ignore current id)
+        if ($request->filled('name') && $request->name !== $product->name) {
+            $productData['slug'] = $this->generateUniqueSlug($request->name, $product->id);
+        }
+
+        if ($request->boolean('clear_images')) {
+            $this->deleteImagesFromStorage($product->images);
+            $productData['images'] = null;
+        }
+
         if ($request->hasFile('images')) {
             $this->deleteImagesFromStorage($product->images);
-
             $paths = [];
             foreach ($request->file('images') as $image) {
                 $paths[] = $image->store('product_images', 'public');
@@ -145,30 +141,44 @@ class ProductController extends Controller
             $productData['images'] = json_encode($paths);
         }
 
-        // Persist changes
-        $product->update($productData); // requires $fillable on the model
-
-        // Return fresh data
+        $product->update($productData);
         $product->refresh();
-        $product->images = $this->decodeImages($product->images);
+        $product->images = $this->pathsToUrls($product->images);
 
         return response()->json(['success' => true, 'product' => $product], 200);
     }
 
-    /**
-     * Helpers
-     * (keep these in your controller; shown here for completeness)
-     */
-    private function decodeImages($images)
+    public function destroy(Product $product)
     {
-        if (is_null($images) || $images === '') {
-            return null;
-        }
+        $this->deleteImagesFromStorage($product->images);
+        $product->delete();
+
+        return response()->json(['success' => true, 'message' => 'Product deleted successfully.'], 200);
+    }
+
+    /**
+     * ---- Helpers ----
+     */
+
+    private function decodeImages($images): ?array
+    {
+        if (is_null($images) || $images === '') return null;
         $decoded = json_decode($images, true);
         return is_array($decoded) ? $decoded : null;
     }
 
-    private function deleteImagesFromStorage($images)
+    /** Convert stored JSON paths to public URLs for responses */
+    private function pathsToUrls($images): ?array
+    {
+        $paths = $this->decodeImages($images);
+        if (!$paths) return null;
+
+        return array_map(function ($path) {
+            return Storage::disk('public')->url($path);
+        }, $paths);
+    }
+
+    private function deleteImagesFromStorage($images): void
     {
         $paths = $this->decodeImages($images) ?? [];
         foreach ($paths as $path) {
@@ -178,20 +188,27 @@ class ProductController extends Controller
         }
     }
 
-
     /**
-     * Remove the specified resource from storage.
+     * Generate a unique slug from a given name.
+     * Appends -2, -3, ... until unique. Ignores $ignoreId on update.
      */
-    public function destroy($id)
+    private function generateUniqueSlug(string $name, ?int $ignoreId = null): string
     {
-        $product = Product::find($id);
-        if (!$product) {
-            return response()->json(['message' => 'Product not found.'], 404);
+        $base = Str::slug($name);
+        $slug = $base;
+        $i = 2;
+
+        $exists = function (string $candidate) use ($ignoreId): bool {
+            return Product::where('slug', $candidate)
+                ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+                ->exists();
+        };
+
+        while ($exists($slug)) {
+            $slug = "{$base}-{$i}";
+            $i++;
         }
 
-        $this->deleteImagesFromStorage($product->images);
-        $product->delete();
-
-        return response()->json(['success' => true, 'message' => 'Product deleted successfully.'], 200);
+        return $slug;
     }
 }

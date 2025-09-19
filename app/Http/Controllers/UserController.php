@@ -27,33 +27,33 @@ class UserController extends Controller
     /**
      * Create a new user.
      */
-     public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+    //  public function register(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         'name'     => ['required', 'string', 'max:255'],
+    //         'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
+    //         'password' => ['required', 'string', 'min:8', 'confirmed'],
+    //     ]);
 
-        $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
+    //     $user = User::create([
+    //         'name'     => $validated['name'],
+    //         'email'    => $validated['email'],
+    //         'password' => Hash::make($validated['password']),
+    //     ]);
 
-        // Create token (add abilities if you want, e.g., ['*'])
-        $token = $user->createToken('api')->plainTextToken;
+    //     // Create token (add abilities if you want, e.g., ['*'])
+    //     $token = $user->createToken('api')->plainTextToken;
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Registered successfully.',
-            'data'    => [
-                'user'       => $user,
-                'token_type' => 'Bearer',
-                'token'      => $token,
-            ],
-        ], 201);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Registered successfully.',
+    //         'data'    => [
+    //             'user'       => $user,
+    //             'token_type' => 'Bearer',
+    //             'token'      => $token,
+    //         ],
+    //     ], 201);
+    // }
 
     /**
      * Show a single user.
@@ -70,26 +70,26 @@ class UserController extends Controller
     /**
      * Update an existing user.
      */
-    public function update(Request $request, User $user)
-    {
-        $validated = $request->validate([
-            'name'     => ['sometimes', 'required', 'string', 'max:255'],
-            'email'    => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => ['sometimes', 'required', 'string', 'min:8', 'confirmed'],
-        ]);
+    // public function update(Request $request, User $user)
+    // {
+    //     $validated = $request->validate([
+    //         'name'     => ['sometimes', 'required', 'string', 'max:255'],
+    //         'email'    => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+    //         'password' => ['sometimes', 'required', 'string', 'min:8', 'confirmed'],
+    //     ]);
 
-        if (isset($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        }
+    //     if (isset($validated['password'])) {
+    //         $validated['password'] = Hash::make($validated['password']);
+    //     }
 
-        $user->update($validated);
+    //     $user->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User updated successfully.',
-            'data'    => $user,
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'User updated successfully.',
+    //         'data'    => $user,
+    //     ]);
+    // }
 
 
     /**

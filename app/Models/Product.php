@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Product extends Model
 {
 
-    protected $fillable = ['category_id', 'name', 'images', 'old_price', 'price', 'description'];
+    protected $fillable = ['category_id', 'name', 'images', 'old_price', 'price', 'description', 'slug'];
     // protected $casts = ['images' => 'array'];
 
     
@@ -15,6 +15,12 @@ class Product extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    // Show URLs like /products/my-product instead of /products/1:
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
     }
 
 }
