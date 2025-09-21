@@ -19,12 +19,12 @@ class ProductController extends Controller
      */
     public function index()
     {
-            $teams = OurTeam::all()->map(function ($t) {
-            $t->image_url = $t->image ? Storage::url($t->image) : null;
-            return $t;
+            $products = Product::with('category')->get()->map(function ($p) {
+        $p->images = $this->pathsToUrls($p->images);
+        return $p;
         });
 
-        return response()->json(['success' => true, 'data' => $teams], 200);
+        return response()->json(['success' => true, 'data' => $products], 200);
     }
 
     public function create()
@@ -102,18 +102,7 @@ class ProductController extends Controller
     {
         // Resolve product by id or slug
         $product = ctype_digit((string)$key)
-            ? Product::find((int)$key)
-            : Product::where('slug', $key)->firstOrFail();
-
-        Log::debug('Product.update incoming', [
-            'route_key'    => $key,
-            'resolved_id'  => $product->id,
-            'method'       => $request->method(),
-            'content_type' => $request->header('Content-Type'),
-            '_method'      => $request->input('_method'),
-            'hasFile'      => $request->hasFile('images'),
-            'all_keys'     => array_keys($request->all()),
-        ]);
+            ? Product::find((int)$key) : Product::where('slug', $key)->firstOrFail();
 
         $validator = Validator::make($request->all(), [
             'category_id'     => ['sometimes','exists:categories,id'],
@@ -121,16 +110,14 @@ class ProductController extends Controller
             'old_price'       => ['nullable','integer'],
             'price'           => ['sometimes','integer'],
             'description'     => ['nullable','string'],
-
-            'images'          => ['sometimes','array'],                 // array of files if present
+            'images'          => ['sometimes','array'],        
             'images.*'        => ['file','image','mimes:jpeg,png,jpg,gif'],
-
             'remove_images'   => ['sometimes','array'],
             'remove_images.*' => ['string'],
         ]);
 
         if ($validator->fails()) {
-            Log::warning('Product.update validation failed', $validator->errors()->toArray());
+            // Log::warning('Product.update validation failed', $validator->errors()->toArray());
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
@@ -205,16 +192,46 @@ class ProductController extends Controller
         return response()->json(['success'=>true, 'product'=>$product], 200);
     }
 
-    // Delete products
-    public function destroy(Product $product)
+    // Delete products.
+    public function destroy($key)
     {
-        $product = Product::find($product);
+        // Resolve product by id or slug (404 if not found)
+        $product = ctype_digit((string)$key)
+            ? Product::find((int)$key)
+            : Product::where('slug', $key)->first();
 
-        $this->deleteImagesFromStorage($product->images);
-        $product->delete();
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found.'
+            ], 404);
+        }
 
-        return response()->json(['success' => true, 'message' => 'Product deleted successfully.'], 200);
+        try {
+            // Delete stored images (handles array/json via helper)
+            $this->deleteImagesFromStorage($product->images);
+
+            // Delete the product row
+            $product->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product deleted successfully.'
+            ], 200);
+        } catch (\Throwable $e) {
+            Log::error('Product.destroy error', [
+                'key' => $key,
+                'err' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete product.'
+            ], 500);
+        }
     }
+
+
 
     /**
      * Helpers function

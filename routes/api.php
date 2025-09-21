@@ -46,6 +46,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Products API.
     Route::resource('products', ProductController::class)->only(['store', 'destroy']);
     Route::post('products/{id}', [ProductController::class, 'update']);
+    
+
 
     // Contact View API.
     Route::get('viewcontact', [ContactUsController::class, 'index']);
