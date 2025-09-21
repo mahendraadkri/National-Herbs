@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContactUs;
+use App\Services\MailService;
 use Illuminate\Http\Request;
+
 
 class ContactUsController extends Controller
 {
@@ -14,17 +16,21 @@ class ContactUsController extends Controller
         
     }
 
-     public function store(Request $request)
+     public function store(Request $request, MailService $mailService)
     {
         $request->validate([
-            'name'    => 'required|string|max:255',
+            'name'    => 'required|string',
             'email'   => 'required|email',
             'phone'   => ['regex:/^(97|98)[0-9]{8}$/'],
             'message' => 'required|string',
         ]);
 
-        ContactUs::create($request->all());
+        $data = $request->all();
+        ContactUs::create($data);
 
-        return response()->json(['message' => 'Your message has been received!'], 201);
+        $mailService->sendContactMail($data);
+
+        return response()->json(['message' => 'Your message has been received successfully!'], 201);
     }
+
 }

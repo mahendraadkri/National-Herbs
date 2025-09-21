@@ -32,9 +32,9 @@ class BlogController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'title'       => ['required', 'string', 'max:255'],
+            'title'       => ['required', 'string'],
             'description' => ['required', 'string'],
-            'image'       => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,webp,gif', 'max:5120'],
+            'image'       => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,webp,gif'],
         ]);
 
         if ($validator->fails()) {
@@ -111,9 +111,9 @@ class BlogController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'title'       => ['sometimes', 'string', 'max:255'],
+            'title'       => ['sometimes', 'string'],
             'description' => ['sometimes', 'string'],
-            'image'       => ['sometimes', 'file', 'image', 'mimes:jpeg,png,jpg,webp,gif', 'max:5120'],
+            'image'       => ['sometimes', 'file', 'image', 'mimes:jpeg,png,jpg,webp,gif'],
         ]);
         // dd($validator);
 

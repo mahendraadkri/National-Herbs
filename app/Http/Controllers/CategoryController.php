@@ -33,7 +33,7 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'        => ['required','string','max:255','unique:categories,name'],
+            'name'        => ['required','string','unique:categories,name'],
             'description' => ['nullable','string'],
         ]);
 
@@ -67,7 +67,7 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category)
     {
         $validated = $request->validate([
-            'name'=> ['required','string','max:255', Rule::unique('categories','name')->ignore($category->id),
+            'name'=> ['required','string', Rule::unique('categories','name')->ignore($category->id),
             ],
             'description' => ['nullable','string'],
         ]);

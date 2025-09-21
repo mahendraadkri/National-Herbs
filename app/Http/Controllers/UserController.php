@@ -152,13 +152,13 @@ class UserController extends Controller
     /**
      * Delete a user.
      */
-    public function destroy(User $user)
-    {
-        $user->delete();
+    // public function destroy(User $user)
+    // {
+    //     $user->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully.',
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'User deleted successfully.',
+    //     ]);
+    // }
 }

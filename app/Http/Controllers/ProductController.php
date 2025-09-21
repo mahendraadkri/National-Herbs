@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OurTeam;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -16,12 +19,12 @@ class ProductController extends Controller
      */
     public function index()
     {
-        $products = Product::with('category')->get()->map(function ($p) {
-            $p->images = $this->pathsToUrls($p->images);
-            return $p;
+            $teams = OurTeam::all()->map(function ($t) {
+            $t->image_url = $t->image ? Storage::url($t->image) : null;
+            return $t;
         });
 
-        return response()->json(['products' => $products], 200);
+        return response()->json(['success' => true, 'data' => $teams], 200);
     }
 
     public function create()
@@ -31,18 +34,17 @@ class ProductController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     * Creates a unique slug from name.
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'category_id' => ['required','exists:categories,id'],
-            'name'        => ['required','string','max:255','unique:products,name'],
+            'name'        => ['required','string','unique:products,name'],
             'old_price'   => ['nullable','integer'],
             'price'       => ['required','integer'],
             'description' => ['nullable','string'],
-            'images'      => ['required'],
-            'images.*'    => ['file','image','mimes:jpeg,png,jpg,gif','max:2048'],
+            'images'      => ['required' ,'array'],
+            'images.*'    => ['file','image','mimes:jpeg,png,jpg,gif'],
         ]);
 
         if ($validator->fails()) {
@@ -77,7 +79,6 @@ class ProductController extends Controller
 
     /**
      * Display the specified resource.
-     * Works with route model binding (id or slug if configured).
      */
     public function show(Product $product)
     {
@@ -96,64 +97,119 @@ class ProductController extends Controller
 
     /**
      * Update the specified resource in storage.
-     * Regenerates slug if name changes.
      */
-    public function update(Request $request, Product $product)
+   public function update(Request $request, $key)
     {
-        $validator = Validator::make($request->all(), [
-            'category_id'  => ['sometimes','exists:categories,id'],
-            'name'         => ['sometimes','string','max:255', Rule::unique('products','name')->ignore($product->id)],
-            'old_price'    => ['nullable','integer'],
-            'price'        => ['sometimes','integer'],
-            'description'  => ['nullable','string'],
-            'images'       => ['nullable','array'],
-            'images.*'     => ['sometimes','file','image','mimes:jpeg,png,jpg,gif','max:2048'],
-            'clear_images' => ['sometimes','boolean'],
+        // Resolve product by id or slug
+        $product = ctype_digit((string)$key)
+            ? Product::find((int)$key)
+            : Product::where('slug', $key)->firstOrFail();
+
+        Log::debug('Product.update incoming', [
+            'route_key'    => $key,
+            'resolved_id'  => $product->id,
+            'method'       => $request->method(),
+            'content_type' => $request->header('Content-Type'),
+            '_method'      => $request->input('_method'),
+            'hasFile'      => $request->hasFile('images'),
+            'all_keys'     => array_keys($request->all()),
         ]);
 
+        $validator = Validator::make($request->all(), [
+            'category_id'     => ['sometimes','exists:categories,id'],
+            'name'            => ['sometimes','string', Rule::unique('products','name')->ignore($product->id)],
+            'old_price'       => ['nullable','integer'],
+            'price'           => ['sometimes','integer'],
+            'description'     => ['nullable','string'],
+
+            'images'          => ['sometimes','array'],                 // array of files if present
+            'images.*'        => ['file','image','mimes:jpeg,png,jpg,gif'],
+
+            'remove_images'   => ['sometimes','array'],
+            'remove_images.*' => ['string'],
+        ]);
 
         if ($validator->fails()) {
+            Log::warning('Product.update validation failed', $validator->errors()->toArray());
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $hasPayload =
-            $request->hasAny(['category_id','name','old_price','price','description','clear_images'])
-            || $request->hasFile('images');
+        // ---- LOAD CURRENT IMAGES (always storage paths) ----
+        $existingPaths = $this->decodeImages($product->images);
 
-        if (!$hasPayload) {
-            return response()->json(['message' => 'No fields to update.'], 400);
-        }
+        // ---- REMOVALS ----
+        $toRemove = (array) $request->input('remove_images', []);
+        if (!empty($toRemove)) {
+            $removePaths   = array_map(fn($x) => $this->normalizeUrlToPath($x), $toRemove);
+            $existingPaths = array_values(array_diff($existingPaths, $removePaths));
 
-        $productData = $request->only(['category_id','name','old_price','price','description']);
-
-        // If name changed, refresh slug (keep unique, ignore current id)
-        if ($request->filled('name') && $request->name !== $product->name) {
-            $productData['slug'] = $this->generateUniqueSlug($request->name, $product->id);
-        }
-
-        if ($request->boolean('clear_images')) {
-            $this->deleteImagesFromStorage($product->images);
-            $productData['images'] = null;
-        }
-
-        if ($request->hasFile('images')) {
-            $this->deleteImagesFromStorage($product->images);
-            $paths = [];
-            foreach ($request->file('images') as $image) {
-                $paths[] = $image->store('product_images', 'public');
+            foreach ($removePaths as $rp) {
+                try {
+                    if ($rp && Storage::disk('public')->exists($rp)) {
+                        Storage::disk('public')->delete($rp);
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Product.update remove file error', ['path'=>$rp, 'err'=>$e->getMessage()]);
+                }
             }
-            $productData['images'] = json_encode($paths);
         }
 
-        $product->update($productData);
-        $product->refresh();
+        // ---- NEW UPLOADS ----
+        $newPaths = [];
+        if ($request->hasFile('images')) {
+            $files = $request->file('images');
+            if (!is_array($files)) $files = [$files];
+            foreach ($files as $file) {
+                try {
+                    $newPaths[] = $file->store('product_images', 'public');
+                } catch (\Throwable $e) {
+                    Log::error('Product.update store file error', ['err'=>$e->getMessage()]);
+                }
+            }
+        }
+
+        // ---- MERGE & DE-DUP ----
+        $finalPaths = array_values(array_unique(array_merge($existingPaths, $newPaths)));
+
+        // ---- SCALAR UPDATES ----
+        $updates = [];
+
+        if ($request->filled('category_id')) $updates['category_id'] = $request->category_id;
+
+        if ($request->filled('name')) {
+            $updates['name'] = $request->name;
+            if (!Str::is($product->name, $request->name)) {
+                $updates['slug'] = $this->generateUniqueSlug($request->name, $product->id);
+            }
+        }
+
+        if ($request->exists('old_price'))   $updates['old_price']   = $request->old_price; // nullable ok
+        if ($request->filled('price'))       $updates['price']       = $request->price;
+        if ($request->exists('description')) $updates['description'] = $request->description;
+
+        // ---- PERSIST IMAGES (honor model casts) ----
+        $casts = $product->getCasts();
+        $updates['images'] = (isset($casts['images']) && $casts['images'] === 'array')
+            ? $finalPaths
+            : json_encode($finalPaths);
+
+        // ---- SAVE ----
+        $product->update($updates);
+
+        // ---- RESPONSE ----
+        $product->load('category');
         $product->images = $this->pathsToUrls($product->images);
 
-        return response()->json(['success' => true, 'product' => $product], 200);
+        Log::info('Product.update success', ['id'=>$product->id, 'images_count'=>count($product->images)]);
+
+        return response()->json(['success'=>true, 'product'=>$product], 200);
     }
 
+    // Delete products
     public function destroy(Product $product)
     {
+        $product = Product::find($product);
+
         $this->deleteImagesFromStorage($product->images);
         $product->delete();
 
@@ -163,27 +219,36 @@ class ProductController extends Controller
     /**
      * Helpers function
      */
-    private function decodeImages($images): ?array
+    private function decodeImages($images): array
     {
-        if (is_null($images) || $images === '') return null;
-        $decoded = json_decode($images, true);
-        return is_array($decoded) ? $decoded : null;
+        if (is_array($images)) {
+            return $images;
+        }
+
+        if (is_string($images) && $images !== '') {
+            $arr = json_decode($images, true);
+            return is_array($arr) ? $arr : [];
+        }
+
+        return [];
     }
 
-    /** Convert stored JSON paths to public URLs for responses */
-    private function pathsToUrls($images): ?array
+    /**
+     * Map storage paths to public URLs.
+     *
+     * Accepts array|json|string|null and returns an array of URLs.
+     */
+    private function pathsToUrls($images): array
     {
         $paths = $this->decodeImages($images);
-        if (!$paths) return null;
-
-        return array_map(function ($path) {
-            return Storage::disk('public')->url($path);
-        }, $paths);
+        return array_map(
+            fn ($p) => Storage::disk('public')->url($p),
+            $paths
+        );
     }
 
-    private function deleteImagesFromStorage($images): void
+    private function deleteImagesArrayFromStorage(array $paths): void
     {
-        $paths = $this->decodeImages($images) ?? [];
         foreach ($paths as $path) {
             if (Storage::disk('public')->exists($path)) {
                 Storage::disk('public')->delete($path);
@@ -191,26 +256,55 @@ class ProductController extends Controller
         }
     }
 
+     private function deleteImagesFromStorage($images)
+    {
+        $paths = $this->decodeImages($images) ?? [];
+        $this->deleteImagesArrayFromStorage($paths);
+    }
+
     /**
-     * Generate a unique slug from a given name.
+     * Generate a unique slug of a product according to given name.
      */
     private function generateUniqueSlug(string $name, ?int $ignoreId = null): string
     {
         $base = Str::slug($name);
         $slug = $base;
-        $i = 2;
+        $i = 1;
 
-        $exists = function (string $candidate) use ($ignoreId): bool {
-            return Product::where('slug', $candidate)
-                ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
-                ->exists();
-        };
+        $query = Product::query()->where('slug', $slug);
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
 
-        while ($exists($slug)) {
-            $slug = "{$base}-{$i}";
-            $i++;
+        while ($query->exists()) {
+            $slug = $base.'-'.$i++;
+            $query = Product::query()->where('slug', $slug);
+            if ($ignoreId) {
+                $query->where('id', '!=', $ignoreId);
+            }
         }
 
         return $slug;
+    }
+
+    /**
+     * Convert a full URL or "/storage/..." URL to a storage path like "product_images/abc.jpg".
+     * If input is already a relative path, returns it as-is (trimmed).
+     */
+    private function normalizeUrlToPath(string $item): string
+    {
+        $item = trim($item);
+
+        // Strip scheme+host if present: https://example.com/storage/...
+        $item = preg_replace('#^https?://[^/]+#', '', $item);
+
+        // Now handle leading "/storage/..."
+        $publicPrefix = rtrim(Storage::url('/'), '/'); // typically "/storage"
+        if (strpos($item, $publicPrefix.'/') === 0) {
+            $item = substr($item, strlen($publicPrefix.'/'));
+        }
+
+        // Remove any leading slash that might remain
+        return ltrim($item, '/');
     }
 }
