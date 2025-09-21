@@ -39,6 +39,18 @@ Route::resource('distributors', DistributorController::class)->only(['index', 's
 // Our Team API
 Route::resource('ourteams', OurteamController::class)->only(['index', 'show']);
 
+// Count Total Products
+Route::get('totalproducts', [ProductController::class, 'product_count']);
+
+// Count Total Categories
+Route::get('totalcategories',[CategoryController::class, 'category_count']);
+
+// Count Total Blods
+Route::get('totalblogs',[BlogController::class, 'blog_count']);
+
+// Count Total Distributors
+Route::get('totaldistributors',[DistributorController::class, 'distributor_count']);
+
 Route::middleware('auth:sanctum')->group(function () {
     // Category API.
     Route::resource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);

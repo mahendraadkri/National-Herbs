@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\OurTeam;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -191,11 +192,23 @@ class ProductController extends Controller
 
         return response()->json(['success'=>true, 'product'=>$product], 200);
     }
+    /**
+     * Return total number of products.
+     */
+    public function product_count()
+    {
+        $total = Product::count();
+
+        return response()->json([
+            'total' => $total
+        ], 200);
+    }
+
 
     // Delete products.
     public function destroy($key)
     {
-        // Resolve product by id or slug (404 if not found)
+        // Resolve product by id or slug
         $product = ctype_digit((string)$key)
             ? Product::find((int)$key)
             : Product::where('slug', $key)->first();

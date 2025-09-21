@@ -83,6 +83,18 @@ class CategoryController extends Controller
     }
 
     /**
+     * Return total number of categories.
+     */
+    public function category_count()
+    {
+        $total = Category::count();
+
+        return response()->json([
+            'total' => $total
+        ], 200);
+    }
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy(Category $category)

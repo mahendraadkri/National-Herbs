@@ -66,6 +66,18 @@ class DistributorController extends Controller
         //
     }
 
+     /**
+     * Return total number of products.
+     */
+    public function distributor_count()
+    {
+        $total = Distributor::count();
+
+        return response()->json([
+            'total' => $total
+        ], 200);
+    }
+
     /**
      * Update the specified resource in storage.
      */

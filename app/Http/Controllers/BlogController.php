@@ -147,6 +147,18 @@ class BlogController extends Controller
         ], 200);
     }
 
+    /**
+     * Return total number of products.
+     */
+    public function blog_count()
+    {
+        $total = Blog::count();
+
+        return response()->json([
+            'total' => $total
+        ], 200);
+    }
+
 
     /**
      * Remove the specified blog from storage.
