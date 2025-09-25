@@ -141,4 +141,18 @@ class OurteamController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Team member deleted successfully'], 200);
     }
+
+    /**
+     * Count Total number of team.
+     */
+    public function team_count()
+    {
+        $total = OurTeam::count();
+
+        return response()->json([
+            'success' => true,
+            'total' => $total,
+        ], 200);
+    }
+
 }

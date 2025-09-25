@@ -265,8 +265,6 @@ class ProductController extends Controller
 
     /**
      * Map storage paths to public URLs.
-     *
-     * Accepts array|json|string|null and returns an array of URLs.
      */
     private function pathsToUrls($images): array
     {
@@ -319,7 +317,6 @@ class ProductController extends Controller
 
     /**
      * Convert a full URL or "/storage/..." URL to a storage path like "product_images/abc.jpg".
-     * If input is already a relative path, returns it as-is (trimmed).
      */
     private function normalizeUrlToPath(string $item): string
     {
@@ -329,7 +326,7 @@ class ProductController extends Controller
         $item = preg_replace('#^https?://[^/]+#', '', $item);
 
         // Now handle leading "/storage/..."
-        $publicPrefix = rtrim(Storage::url('/'), '/'); // typically "/storage"
+        $publicPrefix = rtrim(Storage::url('/'), '/');
         if (strpos($item, $publicPrefix.'/') === 0) {
             $item = substr($item, strlen($publicPrefix.'/'));
         }

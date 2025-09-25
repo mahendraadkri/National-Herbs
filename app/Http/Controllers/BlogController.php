@@ -94,14 +94,6 @@ class BlogController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // Log::info('UPDATE payload', [
-        // 'method'       => $request->method(),
-        // 'content_type' => $request->headers->get('Content-Type'),
-        // 'all'          => $request->all(),
-        // 'has_title'    => $request->has('title'),
-        // 'title'        => $request->input('title'),
-        // ]);
-
         $blog = Blog::find($id);
         if (!$blog) {
             return response()->json([

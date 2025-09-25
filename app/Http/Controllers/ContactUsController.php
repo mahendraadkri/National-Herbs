@@ -33,4 +33,19 @@ class ContactUsController extends Controller
         return response()->json(['message' => 'Your message has been received successfully!'], 201);
     }
 
+    public function destroy($id)
+    {
+        $contact = ContactUs::find($id);
+        
+        if (!$contact) {
+            return response()->json(['message' => 'Contact message not found'], 404);
+        }
+        
+        $contact->delete();
+        
+        return response()->json(['message' => 'Contact message deleted successfully'], 200);
+    }
+
+
+
 }

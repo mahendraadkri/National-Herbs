@@ -7,19 +7,14 @@ use App\Http\Controllers\ContactUsController;
 use App\Http\Controllers\DistributorController;
 use App\Http\Controllers\OurteamController;
 use App\Http\Controllers\ProductController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
 
 // User Login & Register API.
-Route::post('register', [UserController::class, 'register']); 
-Route::post('login',    [UserController::class, 'login']);
+Route::post('login',    [UserController::class, 'login'])->name('users.login');
 
 // Contact Store.
-Route::post('storecontact', [ContactUsController::class, 'store']);
+Route::post('storecontact', [ContactUsController::class, 'store'])->name('contacts.store');
 
 //View Categories API.
 Route::resource('categories', CategoryController::class)->only(['index', 'show']);
@@ -40,41 +35,48 @@ Route::resource('distributors', DistributorController::class)->only(['index', 's
 Route::resource('ourteams', OurteamController::class)->only(['index', 'show']);
 
 // Count Total Products
-Route::get('totalproducts', [ProductController::class, 'product_count']);
+Route::get('totalproducts', [ProductController::class, 'product_count'])->name('products.count');
+
+// Count Total OurTeam
+Route::get('totalteams', [OurteamController::class, 'team_count'])->name('teams.count');
 
 // Count Total Categories
-Route::get('totalcategories',[CategoryController::class, 'category_count']);
+Route::get('totalcategories',[CategoryController::class, 'category_count'])->name('categories.count');
 
 // Count Total Blods
-Route::get('totalblogs',[BlogController::class, 'blog_count']);
+Route::get('totalblogs',[BlogController::class, 'blog_count'])->name('blogs.count');
 
 // Count Total Distributors
-Route::get('totaldistributors',[DistributorController::class, 'distributor_count']);
+Route::get('totaldistributors',[DistributorController::class, 'distributor_count'])->name('distributors.count');
 
 Route::middleware('auth:sanctum')->group(function () {
+
+    // User API.
+    Route::get('/me',       [UserController::class, 'me']);
+    Route::post('/logout',  [UserController::class, 'logout']);
+
     // Category API.
     Route::resource('categories', CategoryController::class)->only(['store', 'update', 'destroy']);
 
     // Products API.
     Route::resource('products', ProductController::class)->only(['store', 'destroy']);
-    Route::post('products/{id}', [ProductController::class, 'update']);
-    
+    Route::post('products/{id}', [ProductController::class, 'update'])->name('products.update');
+
+    // Contact API.
+    Route::resource('contact-us', ContactUsController::class)->only(['index','destroy']);
 
 
-    // Contact View API.
-    Route::get('viewcontact', [ContactUsController::class, 'index']);
-
-    // View Contact API.
+    // User API.
     Route::resource('users', UserController::class)->only(['show', 'index']);
 
     // Blog API.
     Route::resource('blogs', BlogController::class)->only(['store', 'destroy']);
-    Route::post('blogs/{id}', [BlogController::class, 'update']);
+    Route::post('blogs/{id}', [BlogController::class, 'update'])->name('blogs.update');
 
     // Distributors API.
     Route::resource('distributors', DistributorController::class)->only(['store', 'update', 'destroy']);
 
     // Our Team API.
     Route::resource('ourteams', OurteamController::class)->only(['store', 'update', 'destroy']);
-    Route::post('ourteams/{id}', [OurteamController::class, 'update']);
+    Route::post('ourteams/{id}', [OurteamController::class, 'update'])->name('ourteams.update');
 });
