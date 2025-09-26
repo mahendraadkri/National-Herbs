@@ -90,10 +90,10 @@ class DistributorController extends Controller
         }
 
         $validated = $request->validate([
-            'name'     => 'sometimes|required|string|max:255|unique:distributors,name,' . $id,
-            'location' => 'sometimes|required|string|max:255',
-            'phone'    => ['sometimes','required','regex:/^(98|97)[0-9]{8}$/'],
-            'email'    => 'sometimes|required|email|max:255|unique:distributors,email,' . $id,
+            'name'     => 'required|string|max:255|unique:distributors,name,' . $id,
+            'location' => 'required|string|max:255',
+            'phone'    => ['required','regex:/^(98|97)[0-9]{8}$/'],
+            'email'    => 'required|email|max:255|unique:distributors,email,' . $id,
         ]);
 
         $distributor->update($validated);

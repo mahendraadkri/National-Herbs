@@ -96,8 +96,8 @@ class OurteamController extends Controller
         }
 
         $validated = $request->validate([
-            'name'        => 'sometimes|required|string|max:255',
-            'position'    => 'sometimes|required|string|max:255',
+            'name'        => 'required|string|max:255',
+            'position'    => 'required|string|max:255',
             'image'       => 'nullable|image|mimes:jpeg,png,jpg,webp,gif',
             'phone'       => ['nullable', 'regex:/^(97|98)[0-9]{8}$/'],
             'email'       => ['nullable','email', Rule::unique('our_teams','email')->ignore($team->id)],

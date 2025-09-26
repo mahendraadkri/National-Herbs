@@ -106,14 +106,14 @@ class ProductController extends Controller
             ? Product::find((int)$key) : Product::where('slug', $key)->firstOrFail();
 
         $validator = Validator::make($request->all(), [
-            'category_id'     => ['sometimes','exists:categories,id'],
-            'name'            => ['sometimes','string', Rule::unique('products','name')->ignore($product->id)],
+            'category_id'     => ['exists:categories,id'],
+            'name'            => ['string', Rule::unique('products','name')->ignore($product->id)],
             'old_price'       => ['nullable','integer'],
-            'price'           => ['sometimes','integer'],
+            'price'           => ['integer'],
             'description'     => ['nullable','string'],
-            'images'          => ['sometimes','array'],        
+            'images'          => ['array'],        
             'images.*'        => ['file','image','mimes:jpeg,png,jpg,gif'],
-            'remove_images'   => ['sometimes','array'],
+            'remove_images'   => ['array'],
             'remove_images.*' => ['string'],
         ]);
 
