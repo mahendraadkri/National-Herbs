@@ -21,16 +21,19 @@ class ContactUsController extends Controller
         $request->validate([
             'name'    => 'required|string',
             'email'   => 'required|email',
-            'phone'   => ['regex:/^(97|98)[0-9]{8}$/'],
+            'phone'   => ['nullable','regex:/^(97|98)[0-9]{8}$/'],
             'message' => 'required|string',
         ]);
 
-        $data = $request->all();
-        ContactUs::create($data);
+        $data = $request->only(['name','email','phone','message']);
+        $contact = ContactUs::create($data);
 
-        $mailService->sendContactMail($data);
+        $mailService->sendContactMail($data); 
 
-        return response()->json(['message' => 'Your message has been received successfully!'], 201);
+        return response()->json([
+            'message' => 'Your message has been received successfully!',
+            'contact' => $contact
+        ], 201);
     }
 
     public function destroy($id)
